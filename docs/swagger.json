@@ -1,0 +1,376 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Hunter Engine API",
+    "version": "1.0.0",
+    "description": "The backend-only Hunter Engine API. Handles fetching from Codeforces and computing gamified RPG metrics. No UI/Extension included."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    }
+  ],
+  "tags": [
+    { "name": "Hunter", "description": "Hunter profile operations" },
+    { "name": "Jobs", "description": "Job queue and realtime event operations" },
+    { "name": "Comparison", "description": "Hunter comparison operations" },
+    { "name": "Health", "description": "System health operations" }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Check API health",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hunter/{handle}": {
+      "get": {
+        "tags": ["Hunter"],
+        "summary": "Get Hunter Profile",
+        "description": "Returns the completed Hunter Profile if it exists and is ready. If not found, enqueues a background job to sync the profile from Codeforces and returns 202 Accepted. If a job is already processing, returns 202 Accepted.",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Codeforces handle (case-insensitive)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hunter Profile retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HunterProfile" }
+              }
+            }
+          },
+          "202": {
+            "description": "Job is currently processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "PROCESSING" },
+                    "jobId": { "type": "string", "format": "uuid" },
+                    "stage": { "type": "string", "example": "COLLECTING_BATTLE_RECORDS" },
+                    "estimatedTime": { "type": "integer", "example": 30 }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hunter/{handle}/status": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get Job/Profile Status",
+        "description": "Returns the status of the sync job (PROCESSING) or the profile (READY).",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "enum": ["PROCESSING", "READY"] },
+                    "jobId": { "type": "string", "format": "uuid" },
+                    "stage": { "type": "string", "example": "SYNCHRONIZING" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Hunter not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hunter/{handle}/refresh": {
+      "post": {
+        "tags": ["Hunter"],
+        "summary": "Refresh Hunter Profile",
+        "description": "Enqueues a background job to incrementally refresh the profile from Codeforces.",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Refresh job enqueued or already processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "PROCESSING" },
+                    "jobId": { "type": "string", "format": "uuid" },
+                    "stage": { "type": "string" },
+                    "estimatedTime": { "type": "integer", "example": 15 }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Hunter not registered",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hunter/{handle}/events": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Stream Job Events (SSE)",
+        "description": "Server-Sent Events (SSE) endpoint to stream real-time updates for a hunter's processing job. Returns a `text/event-stream` response, NOT standard JSON. Note: Since OpenAPI UI doesn't natively support rendering SSE streams, this endpoint is documented for reference but must be tested via an EventSource client or CLI.",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE Event Stream successfully opened. Followed by payload lines starting with `data: `.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stage": {
+                      "type": "string",
+                      "enum": [
+                        "CONNECTED",
+                        "SYNCHRONIZING",
+                        "COLLECTING_BATTLE_RECORDS",
+                        "ANALYZING_COMBAT_HISTORY",
+                        "COMPUTING_WEIGHTAGE",
+                        "COMPUTING_HUNTER_LEVEL",
+                        "COMPUTING_MANA",
+                        "BUILDING_SKILL_PROFILE",
+                        "REGISTERING_HUNTER",
+                        "READY",
+                        "FAILED"
+                      ]
+                    },
+                    "payload": {
+                      "type": "object",
+                      "description": "Optional payload attached to the event (e.g. the full profile on READY)"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hunter/{handleA}/compare/{handleB}": {
+      "get": {
+        "tags": ["Comparison"],
+        "summary": "Compare two hunters",
+        "description": "Returns the stored profiles of two hunters for comparison.",
+        "parameters": [
+          {
+            "name": "handleA",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "handleB",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comparison data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/HunterProfile"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "One or both hunters not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "example": "NOT_FOUND" },
+              "message": { "type": "string", "example": "Hunter not found" }
+            }
+          }
+        }
+      },
+      "HunterJob": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "format": "uuid" },
+          "handle": { "type": "string" },
+          "type": { "type": "string", "enum": ["REGISTER", "REFRESH"] },
+          "status": { "type": "string", "enum": ["PROCESSING", "READY", "FAILED", "NOT_FOUND"] },
+          "stage": { "type": "string" },
+          "error": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "HunterProfile": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "description": "Lowercase codeforces handle" },
+          "handle": { "type": "string", "example": "tourist" },
+          "hunterRank": {
+            "type": "object",
+            "properties": {
+              "rating": { "type": "integer", "example": 3800 },
+              "rank": { "type": "string", "example": "legendary grandmaster" }
+            }
+          },
+          "hunterLevel": { "type": "number", "example": 98 },
+          "manaPower": { "type": "number", "example": 45000 },
+          "combatProficiency": { "type": "number", "example": 15200 },
+          "problemsDefeated": { "type": "integer", "example": 4050 },
+          "highestMonsterDefeated": { "type": "integer", "example": 3500 },
+          "highestConsistentDifficulty": { "type": "integer", "example": 2800 },
+          "problemDiversityScore": { "type": "number", "example": 85.5 },
+          "contestExperienceScore": { "type": "number", "example": 99.9 },
+          "activeDays": { "type": "integer", "example": 1200 },
+          "currentStreak": { "type": "integer", "example": 45 },
+          "longestStreak": { "type": "integer", "example": 102 },
+          "monsterDistribution": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" },
+            "description": "Map of rating bucket -> count"
+          },
+          "skillAffinities": {
+            "type": "object",
+            "properties": {
+              "Strength": { "type": "number" },
+              "Intelligence": { "type": "number" },
+              "Perception": { "type": "number" },
+              "Magic": { "type": "number" },
+              "Agility": { "type": "number" },
+              "Strategy": { "type": "number" }
+            }
+          },
+          "rawTagCounts": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" }
+          },
+          "combatRecord": {
+            "type": "object",
+            "properties": {
+              "monsterDistribution": {
+                "type": "object",
+                "additionalProperties": { "type": "integer" }
+              },
+              "tagDistribution": {
+                "type": "object",
+                "additionalProperties": { "type": "integer" }
+              }
+            }
+          },
+          "achievements": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "lastSubmissionId": { "type": "integer" },
+              "lastContestId": { "type": "integer" },
+              "lastUpdated": { "type": "string", "format": "date-time" },
+              "engineVersion": { "type": "string", "example": "1.0.0" },
+              "registeredAt": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
