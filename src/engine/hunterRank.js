@@ -5,7 +5,7 @@
  */
 export function computeHunterRank(userInfo) {
   return {
-    rating: userInfo.rating || 0,
-    rank: userInfo.rank || 'unrated',
+    rating: userInfo.maxRating || userInfo.rating || 0,
+    rank: userInfo.maxRank || userInfo.rank || 'unrated',
   };
 }

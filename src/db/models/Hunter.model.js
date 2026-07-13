@@ -9,6 +9,7 @@ const hunterSchema = new mongoose.Schema({
   },
   hunterLevel: { type: Number, default: 0 },
   manaPower: { type: Number, default: 0 },
+  peakManaPower: { type: Number, default: 0 },
   combatProficiency: { type: Number, default: 0 },
   problemsDefeated: { type: Number, default: 0 },
   highestMonsterDefeated: { type: Number, default: 0 },

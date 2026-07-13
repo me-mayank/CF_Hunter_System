@@ -313,6 +313,7 @@
           },
           "hunterLevel": { "type": "number", "example": 98 },
           "manaPower": { "type": "number", "example": 45000 },
+          "peakManaPower": { "type": "number", "example": 46000 },
           "combatProficiency": { "type": "number", "example": 15200 },
           "problemsDefeated": { "type": "integer", "example": 4050 },
           "highestMonsterDefeated": { "type": "integer", "example": 3500 },

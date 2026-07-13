@@ -36,13 +36,17 @@ export function computeHunterProfile(collectedData, previousProfile = null, conf
   const highestMonsterDefeated = ratings.length > 0 ? Math.max(...ratings) : 0;
 
   const contestExperienceScore = computeContestExperience(userRating);
+  const contestsParticipated = userRating ? userRating.length : 0;
 
   const { skillAffinities, rawTagCounts } = computeSkillAffinities(userStatus);
 
   const prevLevel = previousProfile ? previousProfile.hunterLevel : 0;
 
+  const currentRating = userInfo.rating || 0;
+  const maxRating = userInfo.maxRating || userInfo.rating || 0;
+
   const hunterLevel = computeHunterLevel({
-    rating: hunterRank.rating,
+    rating: currentRating,
     problemDiversityScore,
     contestExperienceScore,
     activeDays,
@@ -51,7 +55,15 @@ export function computeHunterProfile(collectedData, previousProfile = null, conf
   }, config);
 
   const manaPower = computeManaPower({
-    rating: hunterRank.rating,
+    rating: currentRating,
+    combatProficiency,
+    contestExperienceScore,
+    problemDiversityScore,
+    activeDays
+  }, config);
+
+  const peakManaPower = computeManaPower({
+    rating: maxRating,
     combatProficiency,
     contestExperienceScore,
     problemDiversityScore,
@@ -63,12 +75,14 @@ export function computeHunterProfile(collectedData, previousProfile = null, conf
     hunterRank,
     hunterLevel,
     manaPower,
+    peakManaPower,
     combatProficiency,
     problemsDefeated,
     highestMonsterDefeated,
     highestConsistentDifficulty,
     problemDiversityScore,
     contestExperienceScore,
+    contestsParticipated,
     activeDays,
     currentStreak,
     longestStreak,
