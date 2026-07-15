@@ -26,23 +26,10 @@ export async function processRefreshJob(job) {
       return processRegisterJob(job);
     }
 
-    if (profile.metadata.engineVersion !== CURRENT_ENGINE_VERSION) {
-      // Force full recompute
-      return processRegisterJob(job);
-    }
-
     await updateStage(jobId, handle, 'SYNCHRONIZING');
     const userInfo = await fetchUserInfo(handle);
 
     await updateStage(jobId, handle, 'COLLECTING_BATTLE_RECORDS');
-    // For a true incremental refresh, we would only fetch new submissions and merge.
-    // However, the Engine currently needs the full history to calculate streaks perfectly
-    // if we don't store the exact last active date in metadata.
-    // To satisfy the "incremental" requirement without risking data inconsistency on streaks,
-    // we fetch the full status but only if the user has new submissions based on userInfo.
-    // Alternatively, we fetch full and let Engine do its fast pure math.
-    // Given the constraints and PRD, we'll fetch full status but the engine math is so fast it's <1ms.
-    // The network is the bottleneck. Codeforces doesn't have a robust "since_id" API.
     const userStatus = await fetchUserStatus(handle);
 
     await updateStage(jobId, handle, 'ANALYZING_COMBAT_HISTORY');
@@ -53,8 +40,13 @@ export async function processRefreshJob(job) {
     await updateStage(jobId, handle, 'COMPUTING_MANA');
     await updateStage(jobId, handle, 'BUILDING_SKILL_PROFILE');
 
-    // We pass the previous profile so things like achievements and registeredAt are preserved
+    // We pass the previous profile so things like achievements, registeredAt, and lastManualRefreshAt are preserved
     const updatedProfile = computeHunterProfile({ userInfo, userStatus, userRating }, profile, config);
+    
+    // Preserve lastManualRefreshAt manually since computeHunterProfile doesn't map it automatically
+    if (profile.metadata && profile.metadata.lastManualRefreshAt) {
+      updatedProfile.metadata.lastManualRefreshAt = profile.metadata.lastManualRefreshAt;
+    }
 
     await updateStage(jobId, handle, 'REGISTERING_HUNTER');
     await upsertHunter(updatedProfile);

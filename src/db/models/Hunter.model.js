@@ -38,6 +38,7 @@ const hunterSchema = new mongoose.Schema({
     lastSubmissionId: { type: Number, default: 0 },
     lastContestId: { type: Number, default: 0 },
     lastUpdated: { type: Date, default: Date.now },
+    lastManualRefreshAt: { type: Date },
     engineVersion: { type: String, required: true },
     registeredAt: { type: Date, default: Date.now }
   }

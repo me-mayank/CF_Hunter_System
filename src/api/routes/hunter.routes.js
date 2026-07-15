@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getHunterByHandle } from '../../db/repositories/hunter.repository.js';
+import { getHunterByHandle, updateLastManualRefresh } from '../../db/repositories/hunter.repository.js';
 import { getActiveJobByHandle, createJob } from '../../db/repositories/hunterJob.repository.js';
 import { hunterQueue, JOB_QUEUES } from '../../jobs/queue.js';
 import { addClient, removeClient } from '../../realtime/sseHub.js';
@@ -85,7 +85,7 @@ router.post('/hunter/:handle/refresh', async (req, res, next) => {
     
     const profile = await getHunterByHandle(handle);
     if (!profile) {
-      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hunter not registered' } });
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Hunter not registered — use GET /hunter/:handle to register first' } });
     }
 
     const activeJob = await getActiveJobByHandle(handle);
@@ -96,6 +96,16 @@ router.post('/hunter/:handle/refresh', async (req, res, next) => {
         stage: activeJob.stage
       });
     }
+
+    if (profile.metadata && profile.metadata.lastManualRefreshAt) {
+      const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000);
+      if (new Date(profile.metadata.lastManualRefreshAt) > tenMinsAgo) {
+        return res.status(429).json({ error: { code: 'RATE_LIMITED', message: 'Re-evaluation already requested recently, try again in 10m' } });
+      }
+    }
+
+    // Set lastManualRefreshAt right now to prevent double clicks
+    await updateLastManualRefresh(handle);
 
     const jobId = await enqueueRefreshJob(handle);
     return res.status(202).json({
