@@ -44,11 +44,12 @@ export function startWorker() {
   }, {
     connection,
     concurrency: 2, // Be conservative to avoid hitting rate limits
-    // IMPORTANT Upstash optimizations:
-    // 1. stalledInterval: 300000 (5 minutes) - defaults to 30s. Reduces Lua script executions by 10x.
-    // 2. drainDelay: 15000 (15 seconds) - wait 15s instead of 5s before re-polling when queue is empty.
+    // ULTRA-OPTIMIZATIONS for Upstash Free Tier (500k commands/month limit):
+    // 1. stalledInterval: 300000 (5 minutes) - defaults to 30s. Reduces stalled check scripts.
+    // 2. drainDelay: 300000 (5 minutes) - wait 5 mins instead of 5s before re-polling when queue is empty.
+    //    New jobs will STILL wake up the worker instantly via Redis Pub/Sub, so this just kills idle polling!
     stalledInterval: 300000,
-    drainDelay: 15000,
+    drainDelay: 300000,
   });
 
   worker.on('failed', (job, err) => {
