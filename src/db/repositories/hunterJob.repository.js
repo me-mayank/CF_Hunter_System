@@ -6,9 +6,11 @@ export async function createJob(jobData) {
 }
 
 export async function getActiveJobByHandle(handle) {
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
   return HunterJob.findOne({
     handle: handle.toLowerCase(),
-    status: 'PROCESSING'
+    status: 'PROCESSING',
+    updatedAt: { $gt: fiveMinutesAgo }
   }).lean();
 }
 
