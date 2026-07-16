@@ -16,8 +16,8 @@ export async function upsertHunter(profile) {
   );
 }
 
-export async function getOutdatedHunters(dateBefore) {
-  return Hunter.find({ 'metadata.lastUpdated': { $lt: dateBefore } }).lean();
+export async function getOutdatedHunters(dateBefore, limit = 5) {
+  return Hunter.find({ 'metadata.lastUpdated': { $lt: dateBefore } }).limit(limit).lean();
 }
 
 export async function updateLastManualRefresh(handle) {
