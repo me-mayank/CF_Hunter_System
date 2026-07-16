@@ -1,4 +1,5 @@
 import { Queue, Worker } from 'bullmq';
+import Redis from 'ioredis';
 import { config } from '../config/index.js';
 import { processRegisterJob } from './registerHunter.job.js';
 import { processRefreshJob } from './refreshHunter.job.js';
@@ -7,9 +8,11 @@ export const JOB_QUEUES = {
   HUNTER_JOBS: 'hunter-jobs'
 };
 
-const connection = {
-  url: config.redisUrl
-};
+const connection = new Redis(config.redisUrl, {
+  maxRetriesPerRequest: null,
+  family: 0,
+  tls: config.redisUrl && config.redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined
+});
 
 // Queue instance for adding jobs (mocked in test)
 export const hunterQueue = process.env.NODE_ENV === 'test' 
